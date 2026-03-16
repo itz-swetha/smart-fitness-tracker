@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Fitness Tracker</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>FitTrack</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+                <li><a href="activities.html" class="nav-link">Activities</a></li>
+                <li><a href="exercises.html" class="nav-link">Exercises</a></li>
+                <li><a href="workouts.html" class="nav-link">Workout Plans</a></li>
+                <li><a href="reports.html" class="nav-link active">Reports</a></li>
+                <li><a href="profile.html" class="nav-link">Profile</a></li>
+            </ul>
+            <div class="user-section">
+                <p id="userNameDisplay"></p>
+                <button id="logoutBtn" class="btn btn-danger">Logout</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Progress Reports</h1>
+            </header>
+
+            <div class="content-area">
+                <!-- Date Range Filter -->
+                <div class="card">
+                    <h2>Filter Reports</h2>
+                    <div class="filter-section">
+                        <div class="form-group">
+                            <label>From Date</label>
+                            <input type="date" id="startDate">
+                        </div>
+                        <div class="form-group">
+                            <label>To Date</label>
+                            <input type="date" id="endDate">
+                        </div>
+                        <button id="filterBtn" class="btn btn-primary">Generate Report</button>
+                    </div>
+                </div>
+
+                <!-- Summary Stats -->
+                <div class="stats-grid">
+                    <div class="card stat-card">
+                        <h3>Total Activities</h3>
+                        <p class="stat-value" id="totalActivities">0</p>
+                    </div>
+                    <div class="card stat-card">
+                        <h3>Total Calories</h3>
+                        <p class="stat-value" id="totalCalories">0</p>
+                        <p class="stat-unit">kcal</p>
+                    </div>
+                    <div class="card stat-card">
+                        <h3>Total Distance</h3>
+                        <p class="stat-value" id="totalDistance">0</p>
+                        <p class="stat-unit">km</p>
+                    </div>
+                    <div class="card stat-card">
+                        <h3>Average Duration</h3>
+                        <p class="stat-value" id="avgDuration">0</p>
+                        <p class="stat-unit">min</p>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="card">
+                    <h2>Calories Burned Weekly</h2>
+                    <canvas id="caloriesChart" height="100"></canvas>
+                </div>
+
+                <div class="card">
+                    <h2>Activity Distribution</h2>
+                    <canvas id="activityChart" height="100"></canvas>
+                </div>
+
+                <div class="card">
+                    <h2>Weekly Distance Progress</h2>
+                    <canvas id="distanceChart" height="100"></canvas>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const userId = localStorage.getItem('userId');
+
+        if (!userId) {
+            window.location.href = 'index.html';
+        }
+
+        document.getElementById('userNameDisplay').textContent = localStorage.getItem('userName');
+
+        // Set date range to last 30 days
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+
+        document.getElementById('startDate').valueAsDate = startDate;
+        document.getElementById('endDate').valueAsDate = endDate;
+
+        let caloriesChart, activityChart, distanceChart;
+
+        async function generateReport() {
+            const startDateVal = document.getElementById('startDate').value;
+            const endDateVal = document.getElementById('endDate').value;
+
+            if (!startDateVal || !endDateVal) {
+                alert('Please select both start and end dates');
+                return;
+            }
+
+            const start = new Date(startDateVal);
+            const end = new Date(endDateVal);
+            end.setDate(end.getDate() + 1);
+
+            try {
+                const statsRes = await fetch(`http://localhost:8080/api/activities/user/${userId}/stats?startDate=${start.toISOString()}&endDate=${end.toISOString()}`);
+                const stats = await statsRes.json();
+
+                const activities = stats.activities || [];
+
+                // Update summary stats
+                document.getElementById('totalActivities').textContent = activities.length;
+                document.getElementById('totalCalories').textContent = Math.round(stats.totalCalories);
+                document.getElementById('totalDistance').textContent = stats.totalDistance.toFixed(1);
+                document.getElementById('avgDuration').textContent = activities.length > 0 ? 
+                    (activities.reduce((sum, a) => sum + a.duration, 0) / activities.length).toFixed(1) : '0';
+
+                // Prepare data for charts
+                const weeklyData = prepareWeeklyData(activities);
+                const activityTypes = groupByActivityType(activities);
+
+                // Update or create charts
+                updateCaloriesChart(weeklyData);
+                updateActivityChart(activityTypes);
+                updateDistanceChart(weeklyData);
+
+            } catch (error) {
+                console.error('Error generating report:', error);
+                alert('Error generating report');
+            }
+        }
+
+        function prepareWeeklyData(activities) {
+            const weeks = {};
+            activities.forEach(activity => {
+                const date = new Date(activity.activityDate);
+                const weekStart = new Date(date);
+                weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+                const weekKey = weekStart.toISOString().split('T')[0];
+
+                if (!weeks[weekKey]) {
+                    weeks[weekKey] = { calories: 0, distance: 0 };
+                }
+                weeks[weekKey].calories += activity.caloriesBurned;
+                weeks[weekKey].distance += activity.distance;
+            });
+
+            return Object.entries(weeks).sort().slice(0, 6);
+        }
+
+        function groupByActivityType(activities) {
+            const types = {};
+            activities.forEach(activity => {
+                types[activity.activityType] = (types[activity.activityType] || 0) + 1;
+            });
+            return types;
+        }
+
+        function updateCaloriesChart(weeklyData) {
+            const ctx = document.getElementById('caloriesChart').getContext('2d');
+            if (caloriesChart) caloriesChart.destroy();
+            
+            caloriesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: weeklyData.map(w => w[0]),
+                    datasets: [{
+                        label: 'Calories Burned (kcal)',
+                        data: weeklyData.map(w => Math.round(w[1].calories)),
+                        backgroundColor: 'rgba(255, 107, 107, 0.7)',
+                        borderColor: 'rgba(255, 107, 107, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function updateActivityChart(activityTypes) {
+            const ctx = document.getElementById('activityChart').getContext('2d');
+            if (activityChart) activityChart.destroy();
+            
+            const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'];
+            
+            activityChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(activityTypes),
+                    datasets: [{
+                        data: Object.values(activityTypes),
+                        backgroundColor: colors.slice(0, Object.keys(activityTypes).length),
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true }
+                    }
+                }
+            });
+        }
+
+        function updateDistanceChart(weeklyData) {
+            const ctx = document.getElementById('distanceChart').getContext('2d');
+            if (distanceChart) distanceChart.destroy();
+            
+            distanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: weeklyData.map(w => w[0]),
+                    datasets: [{
+                        label: 'Distance Covered (km)',
+                        data: weeklyData.map(w => w[1].distance.toFixed(1)),
+                        borderColor: 'rgba(78, 205, 196, 1)',
+                        backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: true }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('filterBtn').addEventListener('click', generateReport);
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userName');
+            window.location.href = 'index.html';
+        });
+
+        // Generate initial report
+        generateReport();
+    </script>
+</body>
+</html>

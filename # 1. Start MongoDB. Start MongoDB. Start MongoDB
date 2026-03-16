@@ -1,0 +1,8 @@
+# 1. Start MongoDB
+# 2. Start Backend
+cd fitness-tracker-app/backend
+mvn spring-boot:run  # runs on localhost:8080/api
+
+# 3. Start Frontend (new terminal)
+cd fitness-tracker-app/frontend
+python -m http.server 8000  # open http://localhost:8000/index.html

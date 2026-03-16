@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercises - Fitness Tracker</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>FitTrack</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+                <li><a href="activities.html" class="nav-link">Activities</a></li>
+                <li><a href="exercises.html" class="nav-link active">Exercises</a></li>
+                <li><a href="workouts.html" class="nav-link">Workout Plans</a></li>
+                <li><a href="reports.html" class="nav-link">Reports</a></li>
+                <li><a href="profile.html" class="nav-link">Profile</a></li>
+            </ul>
+            <div class="user-section">
+                <p id="userNameDisplay"></p>
+                <button id="logoutBtn" class="btn btn-danger">Logout</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Exercise Library</h1>
+            </header>
+
+            <div class="content-area">
+                <!-- Filter -->
+                <div class="filter-section">
+                    <select id="difficultyFilter">
+                        <option value="">All Difficulties</option>
+                        <option value="Beginner">Beginner</option>
+                        <option value="Intermediate">Intermediate</option>
+                        <option value="Advanced">Advanced</option>
+                    </select>
+                </div>
+
+                <!-- Exercises Grid -->
+                <div id="exercisesGrid" class="exercises-grid">
+                    <p>Loading exercises...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Exercise Detail Modal -->
+    <div id="exerciseModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalExerciseName"></h2>
+            <p id="modalExerciseDescription"></p>
+            <p><strong>Target Muscles:</strong> <span id="modalTargetMuscles"></span></p>
+            <p><strong>Difficulty:</strong> <span id="modalDifficulty"></span></p>
+            <p><strong>Instructions:</strong></p>
+            <p id="modalInstructions"></p>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const userId = localStorage.getItem('userId');
+
+        if (!userId) {
+            window.location.href = 'index.html';
+        }
+
+        document.getElementById('userNameDisplay').textContent = localStorage.getItem('userName');
+
+        async function loadExercises(difficulty = '') {
+            try {
+                let url = 'http://localhost:8080/api/exercises';
+                if (difficulty) {
+                    url = `http://localhost:8080/api/exercises/difficulty/${difficulty}`;
+                }
+
+                const response = await fetch(url);
+                const exercises = await response.json();
+
+                const grid = document.getElementById('exercisesGrid');
+                grid.innerHTML = '';
+
+                if (!exercises || exercises.length === 0) {
+                    grid.innerHTML = '<p>No exercises found</p>';
+                    return;
+                }
+
+                exercises.forEach(exercise => {
+                    const card = document.createElement('div');
+                    card.className = `card exercise-card`;
+                    card.innerHTML = `
+                        <h3>${exercise.name}</h3>
+                        <p>${exercise.description}</p>
+                        <p><strong>Target:</strong> ${exercise.targetMuscles}</p>
+                        <p><strong>Level:</strong> <span class="badge badge-${exercise.difficulty.toLowerCase()}">${exercise.difficulty}</span></p>
+                        <button class="btn btn-primary" onclick="showExerciseDetail('${exercise.id}')">View Details</button>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading exercises:', error);
+            }
+        }
+
+        async function showExerciseDetail(id) {
+            try {
+                const response = await fetch(`http://localhost:8080/api/exercises/${id}`);
+                const exercise = await response.json();
+
+                document.getElementById('modalExerciseName').textContent = exercise.name;
+                document.getElementById('modalExerciseDescription').textContent = exercise.description;
+                document.getElementById('modalTargetMuscles').textContent = exercise.targetMuscles;
+                document.getElementById('modalDifficulty').textContent = exercise.difficulty;
+                document.getElementById('modalInstructions').textContent = exercise.instructions || 'No specific instructions provided';
+
+                document.getElementById('exerciseModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading exercise:', error);
+            }
+        }
+
+        document.querySelector('.close').addEventListener('click', function() {
+            document.getElementById('exerciseModal').style.display = 'none';
+        });
+
+        window.addEventListener('click', function(e) {
+            const modal = document.getElementById('exerciseModal');
+            if (e.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+
+        document.getElementById('difficultyFilter').addEventListener('change', function() {
+            loadExercises(this.value);
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userName');
+            window.location.href = 'index.html';
+        });
+
+        loadExercises();
+    </script>
+</body>
+</html>

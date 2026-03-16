@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Plans - Fitness Tracker</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>FitTrack</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+                <li><a href="activities.html" class="nav-link">Activities</a></li>
+                <li><a href="exercises.html" class="nav-link">Exercises</a></li>
+                <li><a href="workouts.html" class="nav-link active">Workout Plans</a></li>
+                <li><a href="reports.html" class="nav-link">Reports</a></li>
+                <li><a href="profile.html" class="nav-link">Profile</a></li>
+            </ul>
+            <div class="user-section">
+                <p id="userNameDisplay"></p>
+                <button id="logoutBtn" class="btn btn-danger">Logout</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Custom Workout Plans</h1>
+            </header>
+
+            <div class="content-area">
+                <!-- Create New Workout -->
+                <div class="card">
+                    <h2>Create New Workout Plan</h2>
+                    <form id="workoutForm">
+                        <div class="form-group">
+                            <label>Workout Name</label>
+                            <input type="text" id="workoutName" placeholder="e.g., Monday Leg Day" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="workoutDescription" placeholder="Describe your workout plan"></textarea>
+                        </div>
+
+                        <div id="setsContainer">
+                            <div class="workout-set">
+                                <h3>Exercise Set 1</h3>
+                                <div class="form-group">
+                                    <label>Exercise Name</label>
+                                    <input type="text" class="setExerciseName" placeholder="e.g., Bench Press" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Reps</label>
+                                    <input type="number" class="setReps" placeholder="Number of reps" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Sets</label>
+                                    <input type="number" class="setSets" placeholder="Number of sets" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Weight (kg)</label>
+                                    <input type="number" class="setWeight" placeholder="Weight in kg" step="0.5">
+                                </div>
+                                <div class="form-group">
+                                    <label>Rest (seconds)</label>
+                                    <input type="number" class="setRest" placeholder="Rest between sets" value="60">
+                                </div>
+                                <button type="button" class="btn btn-small btn-danger" onclick="removeSet(this)">Remove Set</button>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-secondary" id="addSetBtn">+ Add Exercise Set</button>
+                        <button type="submit" class="btn btn-primary" style="margin-top: 20px;">Create Workout Plan</button>
+                    </form>
+                </div>
+
+                <!-- Your Workouts -->
+                <div class="card">
+                    <h2>Your Workout Plans</h2>
+                    <div id="workoutsList">
+                        <p>Loading your workouts...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const userId = localStorage.getItem('userId');
+
+        if (!userId) {
+            window.location.href = 'index.html';
+        }
+
+        document.getElementById('userNameDisplay').textContent = localStorage.getItem('userName');
+
+        let setCount = 1;
+
+        document.getElementById('addSetBtn').addEventListener('click', function() {
+            setCount++;
+            const container = document.getElementById('setsContainer');
+            const newSet = document.createElement('div');
+            newSet.className = 'workout-set';
+            newSet.innerHTML = `
+                <h3>Exercise Set ${setCount}</h3>
+                <div class="form-group">
+                    <label>Exercise Name</label>
+                    <input type="text" class="setExerciseName" placeholder="e.g., Bench Press" required>
+                </div>
+                <div class="form-group">
+                    <label>Reps</label>
+                    <input type="number" class="setReps" placeholder="Number of reps" required>
+                </div>
+                <div class="form-group">
+                    <label>Sets</label>
+                    <input type="number" class="setSets" placeholder="Number of sets" required>
+                </div>
+                <div class="form-group">
+                    <label>Weight (kg)</label>
+                    <input type="number" class="setWeight" placeholder="Weight in kg" step="0.5">
+                </div>
+                <div class="form-group">
+                    <label>Rest (seconds)</label>
+                    <input type="number" class="setRest" placeholder="Rest between sets" value="60">
+                </div>
+                <button type="button" class="btn btn-small btn-danger" onclick="removeSet(this)">Remove Set</button>
+            `;
+            container.appendChild(newSet);
+        });
+
+        function removeSet(btn) {
+            btn.parentElement.remove();
+        }
+
+        async function loadWorkouts() {
+            try {
+                const response = await fetch(`http://localhost:8080/api/workout-routines/user/${userId}`);
+                const workouts = await response.json();
+
+                const workoutsList = document.getElementById('workoutsList');
+                if (!workouts || workouts.length === 0) {
+                    workoutsList.innerHTML = '<p>No workout plans yet. Create your first one!</p>';
+                    return;
+                }
+
+                workoutsList.innerHTML = '';
+                workouts.forEach(workout => {
+                    const card = document.createElement('div');
+                    card.className = 'card workout-card';
+                    card.innerHTML = `
+                        <h3>${workout.name}</h3>
+                        <p>${workout.description || 'No description'}</p>
+                        <p><strong>Exercises:</strong> ${workout.sets ? workout.sets.length : 0}</p>
+                        <button class="btn btn-small btn-primary" onclick="viewWorkout('${workout.id}')">View Details</button>
+                        <button class="btn btn-small btn-danger" onclick="deleteWorkout('${workout.id}')">Delete</button>
+                    `;
+                    workoutsList.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading workouts:', error);
+            }
+        }
+
+        function viewWorkout(id) {
+            // Would navigate to detail page or show modal
+            alert('Viewing workout: ' + id);
+        }
+
+        function deleteWorkout(id) {
+            if (confirm('Are you sure you want to delete this workout plan?')) {
+                fetch(`http://localhost:8080/api/workout-routines/${id}`, { method: 'DELETE' })
+                    .then(() => {
+                        alert('Workout deleted!');
+                        loadWorkouts();
+                    })
+                    .catch(err => console.error('Error:', err));
+            }
+        }
+
+        document.getElementById('workoutForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const sets = [];
+            document.querySelectorAll('.workout-set').forEach((set) => {
+                sets.push({
+                    exerciseName: set.querySelector('.setExerciseName').value,
+                    reps: parseInt(set.querySelector('.setReps').value),
+                    sets: parseInt(set.querySelector('.setSets').value),
+                    weight: parseFloat(set.querySelector('.setWeight').value) || 0,
+                    restSeconds: parseInt(set.querySelector('.setRest').value)
+                });
+            });
+
+            const workout = {
+                userId: userId,
+                name: document.getElementById('workoutName').value,
+                description: document.getElementById('workoutDescription').value,
+                sets: sets
+            };
+
+            try {
+                const response = await fetch('http://localhost:8080/api/workout-routines', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(workout)
+                });
+
+                if (response.ok) {
+                    alert('Workout plan created successfully!');
+                    document.getElementById('workoutForm').reset();
+                    setCount = 1;
+                    loadWorkouts();
+                } else {
+                    alert('Failed to create workout plan');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error creating workout plan');
+            }
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userName');
+            window.location.href = 'index.html';
+        });
+
+        loadWorkouts();
+    </script>
+</body>
+</html>

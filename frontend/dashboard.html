@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Fitness Tracker</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <nav class="sidebar">
+            <div class="logo">
+                <h2>FitTrack</h2>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="dashboard.html" class="nav-link active">Dashboard</a></li>
+                <li><a href="activities.html" class="nav-link">Activities</a></li>
+                <li><a href="exercises.html" class="nav-link">Exercises</a></li>
+                <li><a href="workouts.html" class="nav-link">Workout Plans</a></li>
+                <li><a href="reports.html" class="nav-link">Reports</a></li>
+                <li><a href="profile.html" class="nav-link">Profile</a></li>
+            </ul>
+            <div class="user-section">
+                <p id="userNameDisplay"></p>
+                <button id="logoutBtn" class="btn btn-danger">Logout</button>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Dashboard</h1>
+            </header>
+
+            <div class="dashboard-grid">
+                <!-- Welcome Card -->
+                <div class="card welcome-card">
+                    <h2>Welcome back, <span id="welcomeName"></span>!</h2>
+                    <p>Let's continue your fitness journey today</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="card stat-card">
+                    <h3>Today's Calories</h3>
+                    <p class="stat-value" id="todayCalories">0</p>
+                    <p class="stat-unit">kcal</p>
+                </div>
+
+                <div class="card stat-card">
+                    <h3>This Week's Distance</h3>
+                    <p class="stat-value" id="weekDistance">0</p>
+                    <p class="stat-unit">km</p>
+                </div>
+
+                <div class="card stat-card">
+                    <h3>BMI</h3>
+                    <p class="stat-value" id="bmiValue">--</p>
+                    <p class="stat-unit"></p>
+                </div>
+
+                <!-- Quick Add Activity -->
+                <div class="card">
+                    <h3>Quick Add Activity</h3>
+                    <form id="quickActivityForm">
+                        <select id="activityType" required>
+                            <option value="">Select Activity</option>
+                            <option value="Running">Running</option>
+                            <option value="Swimming">Swimming</option>
+                            <option value="Yoga">Yoga</option>
+                        </select>
+                        <input type="number" id="duration" placeholder="Duration (minutes)" required>
+                        <input type="number" id="distance" placeholder="Distance (km)" step="0.1">
+                        <button type="submit" class="btn btn-primary">Add Activity</button>
+                    </form>
+                </div>
+
+                <!-- Recent Activities -->
+                <div class="card full-width">
+                    <h3>Recent Activities</h3>
+                    <div id="recentActivities" class="activities-list">
+                        <p>No activities yet</p>
+                    </div>
+                </div>
+
+                <!-- Fitness Goal -->
+                <div class="card">
+                    <h3>Your Fitness Goal</h3>
+                    <p id="fitnessGoal">Loading...</p>
+                    <button class="btn btn-secondary" id="viewRecommendationBtn">View Recommendations</button>
+                </div>
+
+                <!-- Recommendations -->
+                <div class="card full-width">
+                    <h3>Recommended Workouts</h3>
+                    <div id="recommendedActivities" class="recommendations">
+                        <p>Loading recommendations...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        async function loadDashboard() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            try {
+                // Load user info
+                const userRes = await fetch('http://localhost:8080/api/users/' + userId);
+                const user = await userRes.json();
+                
+                document.getElementById('welcomeName').textContent = user.firstName;
+                document.getElementById('userNameDisplay').textContent = user.firstName + ' ' + user.lastName;
+                document.getElementById('fitnessGoal').textContent = user.fitnessGoal;
+                document.getElementById('bmiValue').textContent = user.height && user.weight ? 
+                    (user.weight / ((user.height / 100) * (user.height / 100))).toFixed(1) : '--';
+
+                // Load today's stats
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const todayStats = await fetch(`http://localhost:8080/api/activities/user/${userId}/stats?startDate=${today.toISOString()}`);
+                const stats = await todayStats.json();
+                document.getElementById('todayCalories').textContent = Math.round(stats.totalCalories);
+
+                // Load week's distance
+                const weekStart = new Date();
+                weekStart.setDate(weekStart.getDate() - 7);
+                const weekStats = await fetch(`http://localhost:8080/api/activities/user/${userId}/stats?startDate=${weekStart.toISOString()}`);
+                const weekData = await weekStats.json();
+                document.getElementById('weekDistance').textContent = weekData.totalDistance.toFixed(1);
+
+                // Load recent activities
+                const activitiesRes = await fetch('http://localhost:8080/api/activities/user/' + userId);
+                const activities = await activitiesRes.json();
+                
+                const recentDiv = document.getElementById('recentActivities');
+                recentDiv.innerHTML = '';
+                
+                if (activities.length === 0) {
+                    recentDiv.innerHTML = '<p>No activities yet</p>';
+                } else {
+                    activities.slice(0, 5).forEach(activity => {
+                        const date = new Date(activity.activityDate);
+                        recentDiv.innerHTML += `
+                            <div class="activity-item">
+                                <span>${activity.activityType}</span>
+                                <span>${activity.duration} min</span>
+                                <span>${activity.caloriesBurned.toFixed(0)} kcal</span>
+                                <span>${date.toLocaleDateString()}</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Load recommendations
+                const recRes = await fetch('http://localhost:8080/api/recommendations/user/' + userId);
+                if (recRes.ok) {
+                    const rec = await recRes.json();
+                    const recDiv = document.getElementById('recommendedActivities');
+                    recDiv.innerHTML = `
+                        <div class="recommendation-card">
+                            <h4>${rec.fitnessGoal}</h4>
+                            <p>${rec.recommendationReason}</p>
+                            <ul>
+                                ${rec.recommendedActivities.map(a => `<li>${a}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    // Generate recommendation if not exists
+                    await fetch(`http://localhost:8080/api/recommendations/${userId}/${user.fitnessGoal}`, { method: 'POST' });
+                    location.reload();
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userName');
+            window.location.href = 'index.html';
+        });
+
+        document.getElementById('quickActivityForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const userId = localStorage.getItem('userId');
+            
+            const activity = {
+                userId: userId,
+                activityType: document.getElementById('activityType').value,
+                duration: parseFloat(document.getElementById('duration').value),
+                distance: parseFloat(document.getElementById('distance').value) || 0,
+                activityDate: new Date().toISOString(),
+                caloriesBurned: 0
+            };
+
+            try {
+                const response = await fetch('http://localhost:8080/api/activities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(activity)
+                });
+
+                if (response.ok) {
+                    alert('Activity added successfully!');
+                    location.reload();
+                }
+            } catch (error) {
+                alert('Failed to add activity');
+            }
+        });
+
+        document.getElementById('viewRecommendationBtn').addEventListener('click', function() {
+            // Scroll to recommendations section
+            document.getElementById('recommendedActivities').scrollIntoView({ behavior: 'smooth' });
+        });
+
+        loadDashboard();
+    </script>
+</body>
+</html>
