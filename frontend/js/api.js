@@ -1,6 +1,6 @@
 /* API Service Functions */
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'https://smart-fitness-tracker-9idv.onrender.com/api';
 
 async function apiCall(endpoint, method = 'GET', data = null) {
     const options = {
