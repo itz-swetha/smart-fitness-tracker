@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Smart Fitness Tracker Web Application
 
 A comprehensive fitness tracking application built with Java Spring Boot, MongoDB, and vanilla HTML/CSS/JavaScript. Track your workouts, monitor progress, and achieve your fitness goals.
@@ -376,3 +377,6 @@ For issues, questions, or suggestions:
 ---
 
 **Happy Fitness Tracking!** 💪
+=======
+# smart-fitness-tracker
+>>>>>>> d3281d3224fe3f981c7635a18df3eabe3de35e6d
